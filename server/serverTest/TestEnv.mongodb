@@ -1,0 +1,69 @@
+// MongoDB Playground
+// Run Selected run shortcut: Ctrl + Alt + r
+// Run Selected line shortcut: Ctrl + Alt + S
+
+// Create/ Select the database/ collection to use .
+const database = "errorrdoc"
+const collection = "documentations"
+use(database);
+db.createCollection(collection)
+
+// The drop() command destroys all data from a collection.
+// Make sure you run it against the correct database and collection.
+// db.collection.drop();
+
+// insert a single document into the collection
+// db.documentations.insertOne(
+//   {
+//   "_id": 1,
+//   "error": "Objects are not valid as a React child, If you meant to render a collection of children use an array instead.",
+//   "solution":"Iterate over your current array of objects using JavaScript built in map function",
+//   "tag":["objects", "array"],
+//   "image": null,
+//   "date": new Date().toISOString()
+// })
+
+// insert multiple document into the collection
+
+// overall of likes and dislikes formula (sum of the values) / (number of values)
+db.documentations.insertMany(
+ [ 
+   {
+  "_id": 1,
+  "error": "Objects are not valid as a React child, If you meant to render a collection of children use an array instead.",
+  "solution":"Iterate over your current array of objects using JavaScript built in map function",
+  "tag":["objects", "array"],
+  "image": null,
+  "date": new Date().toISOString(),
+  "likes": 10,
+  "dislikes": 20,
+  }, 
+  {
+  "_id": 2,
+  "error": "useRoutes() may be used only in the context of a <Router> component.",
+  "solution":"This is a React Router v6 syntax error that occurs when you forget to wrap BrowserRouter around the file you have used useRoutes in.",
+  "tag":["React Router V6", "useRoutes"],
+  "image": null,
+  "date": new Date().toISOString(),
+  "likes": 10,
+  "dislikes": 20,
+  }, 
+])
+
+// read one single document
+ db.documentations.findOne({ '_id': 1})
+//  read all documents in collection that matched our query
+ db.documentations.find({tag:"useRoutes"})
+
+//  read multiple documents for an array field
+ db.documentations.find({tag:{$in:["useRoutes", "array"]}})
+
+//  update document
+db.documentations.updateOne({"_id":2}, {$set:{"image":"https://res.cloudinary.com/dis7ep3yq/image/upload/v1648590920/ErrrorrDoc/RouterWrap_q9dksm.png"}})
+
+// delete document
+db.documentations.deleteOne({"_id":1})
+
+// aggregate 
+// overall rating for each error
+db.documentations.aggregate( {$project:{total:{$multiply:["$likes", "$dislikes"]}}})
