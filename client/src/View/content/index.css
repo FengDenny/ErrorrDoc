@@ -1,0 +1,28 @@
+@import url("https://fonts.googleapis.com/css2?family=Domine:wght@400;700&family=Krona+One&display=swap");
+
+/* Diagonal Global.styled.js */
+.diagonal-one:before,
+.diagonal-positive-one:before {
+  background: var(--bg-gradient);
+}
+
+.btn-padding-top {
+  position: relative;
+  top: 0.5rem;
+}
+
+.display-flex {
+  display: flex;
+  flex-direction: row;
+}
+
+.display-end-btn {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.display-end-btn button {
+  position: relative;
+  right: 7rem;
+  bottom: 2.5rem;
+}

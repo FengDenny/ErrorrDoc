@@ -1,0 +1,24 @@
+@media only screen and (max-width: 855px) {
+  .document-cta {
+    align-items: center;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .banner-margin {
+    margin: 1rem auto;
+  }
+
+  .display-end-btn button {
+    position: relative;
+    left: -6rem;
+    bottom: 2.5rem;
+  }
+}
+@media only screen and (max-width: 425px) {
+  .display-end-btn button {
+    position: relative;
+    left: -0.5rem;
+    bottom: 2.5rem;
+  }
+}
