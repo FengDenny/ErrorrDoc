@@ -1,9 +1,32 @@
 const express = require("express");
 const authRoutes = express.Router();
 
-const { signUpFree, login } = require("../../models/authModel/authModel");
+const {
+  signUpFree,
+  accountActivation,
+  login,
+  forgotPassword,
+  resetPassword,
+} = require("../../models/authModel/authModel");
 
-authRoutes.post("/auth/signupfree", signUpFree);
+const {
+  userSignupValidation,
+  runValidationResult,
+} = require("../../controllers/helpers/expressValidator");
+
+authRoutes.post(
+  "/auth/signupfree",
+  userSignupValidation,
+  runValidationResult,
+  signUpFree
+);
+authRoutes.post("/auth/account-activation", accountActivation);
 authRoutes.post("/auth/login", login);
+
+// @desc User ResetPassword
+//@route POST "/api/v1/auth/forgotPassword"
+//@route PATCH "/api/v1/auth/resetPassword/:token"
+authRoutes.post("/auth/forgotPassword", forgotPassword);
+authRoutes.patch("/auth/resetPassword/:token", resetPassword);
 
 module.exports = authRoutes;
