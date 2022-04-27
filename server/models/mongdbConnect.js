@@ -4,25 +4,13 @@ const database_connect = process.env.MONGODB_ATLAS_CONNECT.replace(
   "<PASSWORD>",
   process.env.MONGODB_PASSWORD
 );
-const client = new MongoClient(database_connect, {
+const mongoClient = new MongoClient(database_connect, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 });
 
-let dbconnection;
+mongoClient.connect((err) => {
+  console.log("Connected to MongoDB!");
+});
 
-module.exports = {
-  connectToServer: function (callback) {
-    client.connect(function (err, db) {
-      if (db) {
-        dbconnection = db.db("errorrdoc");
-        console.log(`Successfully connected to MongoDB`);
-      }
-      return callback();
-    });
-  },
-
-  getDB: function () {
-    return dbconnection;
-  },
-};
+module.exports = mongoClient;
