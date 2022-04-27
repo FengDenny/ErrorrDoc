@@ -1,4 +1,6 @@
-const dbo = require("../mongdbConnect");
+const mongoClient = require("../mongdbConnect");
+const db = mongoClient.db("errorrdoc");
+const connection = db.collection("users");
 const {
   hashPassword,
   createPasswordResetToken,
@@ -6,10 +8,10 @@ const {
 // convert the id from string to ObjectId for the _id.
 const ObjectId = require("mongodb").ObjectId;
 const csprng = require("csprng");
-const expressJWT = require("express-jwt");
+const { expressjwt: jwtoken } = require("express-jwt");
 const jwt = require("jsonwebtoken");
-const crypto = require("crypto");
 const { promisify } = require("util");
+const salt = csprng(160, 36);
 // sending email requirements
 const dotenv = require("dotenv");
 dotenv.config({ path: "../../.env" });
@@ -24,28 +26,26 @@ const {
 
 exports.signUpFree = async (req, response) => {
   let { username, email, password } = req.body;
-  const db_connect = dbo.getDB();
-  const connection = db_connect.collection("users");
   // const accountFound = await connection.find({
   //   email: { $exists: true },
   //   username: { $exists: true },
   // });
 
   const userEmail = await connection.findOne({ email });
-  const userPassword = await connection.findOne({ password });
+  const userUsername = await connection.findOne({ username });
   const token = jwt.sign(
     { username, email, password },
     process.env.JWT_ACCOUNT_ACTIVATION,
     { expiresIn: "2 minutes" }
   );
 
-  if (userEmail || userPassword) {
+  if (userEmail || userUsername) {
     return response.json({
       status: "error",
       message: `${
-        email ? email : username
-      } is associated with another account. Please use a different ${
-        email ? "email" : "username"
+        userEmail ? email : username
+      } is already taken. Please use a different ${
+        userEmail ? "email" : "username"
       }.`,
     });
   } else {
@@ -75,10 +75,6 @@ exports.signUpFree = async (req, response) => {
 
 exports.accountActivation = async (req, response) => {
   const { token } = req.body;
-  const db_connect = dbo.getDB();
-  const connection = db_connect.collection("users");
-  const salt = csprng(160, 36);
-
   if (token) {
     jwt.verify(
       token,
@@ -141,27 +137,32 @@ exports.accountActivation = async (req, response) => {
 
 exports.login = async (req, response) => {
   const { email, password } = req.body;
-  const db_connect = dbo.getDB();
-  const connection = db_connect.collection("users");
   const accountFound = await connection.findOne({ email });
 
-  const token = jwt.sign({ _id: accountFound._id }, process.env.JWT_SECRET, {
-    expiresIn: "8 days",
-  });
-  // 1 Day = 24 Hrs = 24*60*60
-  // 1 Day + 6  = 7 days
-  response.cookie("jwt", token, {
-    expires: new Date(
-      Date.now() + process.env.JWT_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000
-    ),
-    httpOnly: true,
-    secure: req.secure || req.headers["x-forwarded-proto"] === "https",
-  });
+  if (!accountFound) {
+    return response.json({
+      status: "error",
+      message: `${email} has not been signed up yet. Please sign up.`,
+    });
+  }
 
   const { _id, salt, username } = accountFound;
   try {
     let hashedPassword = accountFound.password;
     const passwordCheck = hashPassword(`${salt}${password}`);
+    const token = jwt.sign({ _id: accountFound._id }, process.env.JWT_SECRET, {
+      expiresIn: "8 days",
+    });
+    // 1 Day = 24 Hrs = 24*60*60
+    // 1 Day + 6  = 7 days
+    response.cookie("jwt", token, {
+      expires: new Date(
+        Date.now() + process.env.JWT_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000
+      ),
+      httpOnly: true,
+      secure: req.secure || req.headers["x-forwarded-proto"] === "https",
+    });
+
     if (hashedPassword === passwordCheck) {
       response.json({
         status: "success",
@@ -189,11 +190,9 @@ exports.login = async (req, response) => {
 
 exports.forgotPassword = async (req, response) => {
   const { email } = req.body;
-  const db_connect = dbo.getDB();
-  const connection = db_connect.collection("users");
-  const findEmail = await connection.findOne({ email });
-
-  if (!findEmail) {
+  const user = await connection.findOne({ email });
+  const { username } = user;
+  if (!user) {
     return response.json({
       status: "error",
       message: `There is no user associated with ${email}`,
@@ -205,7 +204,7 @@ exports.forgotPassword = async (req, response) => {
 
   try {
     await connection.updateOne(
-      { email },
+      { username },
       {
         $set: {
           passwordResetToken: resetToken,
@@ -220,12 +219,12 @@ exports.forgotPassword = async (req, response) => {
       subject: "Reset Password Link",
       html: resetPassword(resetURL),
     };
-    sgMail.send(resetData).then(() => {
-      return response.json({
-        status: "success",
-        message: `Email has been sent to ${email}. Follow the instructions to reset your password`,
-      });
-    });
+    // sgMail.send(resetData).then(() => {
+    //   return response.json({
+    //     status: "success",
+    //     message: `Email has been sent to ${email}. Follow the instructions to reset your password`,
+    //   });
+    // });
   } catch (err) {
     console.log(err);
   }
@@ -233,10 +232,8 @@ exports.forgotPassword = async (req, response) => {
 
 exports.resetPassword = async (req, response) => {
   const passReq = /^(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{6,20}$/;
-  const { password } = req.body;
+  const { password, confirmPassword } = req.body;
   const { token } = req.params;
-  const db_connect = dbo.getDB();
-  const connection = db_connect.collection("users");
   const userReset = await connection.findOne({
     passwordResetToken: token,
     passwordResetExpires: {
@@ -251,16 +248,20 @@ exports.resetPassword = async (req, response) => {
       message: "Token is invalid or has expired.",
     });
   }
-  const { email, username, _id, salt } = userReset;
+  const { email, username, _id } = userReset;
   userReset.password = password;
-  userReset.passwordResetToken = undefined;
-  userReset.passwordResetExpires = undefined;
-  if (userReset.password.match(passReq)) {
+  if (
+    userReset.password.match(passReq) &&
+    confirmPassword.match(userReset.password)
+  ) {
     await connection.updateOne(
-      { email },
+      { username },
       {
         $set: {
           password: hashPassword(`${salt}${password}`),
+          salt: salt,
+          passwordResetToken: undefined,
+          passwordResetExpires: undefined,
         },
       }
     );
@@ -286,10 +287,213 @@ exports.resetPassword = async (req, response) => {
         email,
       },
     });
+  } else if (!confirmPassword.match(userReset.password)) {
+    return response.json({
+      status: "fail",
+      message: "Password does not match.",
+    });
   } else {
     return response.json({
       status: "fail",
-      message: "Invalid password format.",
+      message: [
+        {
+          title: "Password must be",
+          requirement_1: "6 to 20 characters",
+          requirement_2: "one numeric digit",
+          requirement_3: "one uppercase letter",
+          requirement_4: "one lowercase letter",
+        },
+      ],
     });
   }
+};
+
+// protect account  middleware
+exports.protect = async (req, response, next) => {
+  let token;
+  //  check token
+  if (
+    req.headers.authorization &&
+    req.headers.authorization.startsWith("Bearer")
+  ) {
+    // retrieve the second part of the string after Bearer
+    token = req.headers.authorization.split(" ")[1];
+  } else if (req.cookies.jwt) {
+    token = req.cookies.jwt;
+  }
+
+  if (!token) {
+    return next(
+      response.json({
+        status: "fail",
+        message: "You are not logged in! Please log in to gain access",
+      })
+    );
+  }
+  const decoded = await promisify(jwt.verify)(token, process.env.JWT_SECRET);
+  const currentUser = await connection.find({ _id: decoded._id });
+  if (!currentUser) {
+    return next(
+      response.json({
+        status: "fail",
+        message: "The user thats belongs to this token does no longer exist.",
+      })
+    );
+  }
+
+  req.user = currentUser;
+  response.locals.user = currentUser;
+  next();
+};
+
+exports.protected = jwtoken({
+  secret: process.env.JWT_SECRET,
+  algorithms: ["HS256"],
+  userProperty: "auth",
+});
+
+// Update account
+
+exports.updatePassword = async (req, response) => {
+  const { password, currentPassword } = req.body;
+
+  let token;
+  //  check token
+  if (
+    req.headers.authorization &&
+    req.headers.authorization.startsWith("Bearer")
+  ) {
+    // retrieve the second part of the string after Bearer
+    token = req.headers.authorization.split(" ")[1];
+  } else if (req.cookies.jwt) {
+    token = req.cookies.jwt;
+  }
+
+  if (!token) {
+    return next(
+      response.json({
+        status: "fail",
+        message: "You are not logged in! Please log in to gain access",
+      })
+    );
+  }
+  const decoded = await promisify(jwt.verify)(token, process.env.JWT_SECRET);
+  const user = await connection.findOne({ _id: ObjectId(decoded._id) });
+  console.log(user);
+  const { salt, username, updated } = user;
+  const confirmPassCheck = hashPassword(`${salt}${currentPassword}`);
+
+  if (!password || !currentPassword) {
+    return response.json({
+      status: "fail",
+      message: `Enter a password and a current password.`,
+    });
+  }
+
+  if (user.password !== confirmPassCheck) {
+    return response.json({
+      status: "fail",
+      message: "Your current password is incorrect.",
+    });
+  } else {
+    user.password = password;
+    await connection.updateOne(
+      { username },
+      {
+        $set: {
+          password: hashPassword(`${salt}${password}`),
+          updated: new Date().toLocaleString(),
+        },
+      }
+    );
+    const token = jwt.sign({ _id: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "7d",
+    });
+    return response.json({
+      status: "success",
+      message: "Your password has been updated.",
+      token,
+      updated,
+    });
+  }
+};
+exports.updateAccount = async (req, response) => {
+  const { email, username } = req.body;
+  let token;
+  //  check token
+  if (
+    req.headers.authorization &&
+    req.headers.authorization.startsWith("Bearer")
+  ) {
+    // retrieve the second part of the string after Bearer
+    token = req.headers.authorization.split(" ")[1];
+  } else if (req.cookies.jwt) {
+    token = req.cookies.jwt;
+  }
+
+  if (!token) {
+    return next(
+      response.json({
+        status: "fail",
+        message: "You are not logged in! Please log in to gain access",
+      })
+    );
+  }
+  const decoded = await promisify(jwt.verify)(token, process.env.JWT_SECRET);
+  const user = await connection.findOne({ _id: ObjectId(decoded._id) });
+  const userEmail = await connection.findOne({ email });
+  const userUsername = await connection.findOne({ username });
+
+  const tokenSign = jwt.sign({ _id: user._id }, process.env.JWT_SECRET, {
+    expiresIn: "7d",
+  });
+
+  const { _id, updated } = user;
+
+  if (userEmail || userUsername) {
+    return response.json({
+      status: "error",
+      message: `${
+        userEmail ? email : username
+      } is associated with another account. Please use a different ${
+        userEmail ? "email" : "username"
+      }.`,
+    });
+  }
+
+  if (username) {
+    await connection.updateOne(
+      { _id },
+      {
+        $set: {
+          username,
+          updated: new Date().toLocaleString(),
+        },
+      }
+    );
+  }
+
+  if (email) {
+    await connection.updateOne(
+      { _id },
+      {
+        $set: {
+          email,
+          updated: new Date().toLocaleString(),
+        },
+      }
+    );
+  }
+
+  return response.json({
+    status: "success",
+    message: `Account has been updated successfully.`,
+    user: {
+      _id,
+      username,
+      email,
+      token: tokenSign,
+      updated: new Date().toLocaleString(),
+    },
+  });
 };
