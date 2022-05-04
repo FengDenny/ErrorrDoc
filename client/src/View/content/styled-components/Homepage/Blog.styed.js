@@ -2,8 +2,6 @@ import styled from "styled-components";
 import { MediaQueries, MinQuery } from "../MediaQueries.styled";
 import { theme } from "../Global.styled";
 
-import { motion } from "framer-motion";
-
 export const BlogContent = styled.section`
   position: relative;
   display: flex;

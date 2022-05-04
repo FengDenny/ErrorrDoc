@@ -2,8 +2,6 @@ import styled from "styled-components";
 import { MediaQueries, MinQuery } from "../MediaQueries.styled";
 import { theme } from "../Global.styled";
 
-import { motion } from "framer-motion";
-
 export const DocsContent = styled.div`
   position: relative;
   bottom: 3rem;

@@ -1,6 +1,5 @@
 import styled, { createGlobalStyle, keyframes } from "styled-components";
 import { MediaQueries } from "./MediaQueries.styled";
-import { motion, Variants } from "framer-motion";
 export const GlobalStyles = createGlobalStyle`
 // css reset
 *, *::before, *::after{
@@ -100,12 +99,6 @@ export const Button = styled.button`
     background: var(--bg-hover);
     transition-duration: 0.3s;
     box-shadow: var(--box-shadow);
-  }
-
-  @media only screen and (max-width: 855px) {
-    margin-top: ${(props) => (props.nav ? "9rem" : 0)};
-    left: ${(props) => (props.nav ? "1.4rem" : "0")};
-    align-self: flex-start;
   }
 `;
 
