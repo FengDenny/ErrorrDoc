@@ -1,17 +1,15 @@
-import React from "react";
-import { MobileNav } from "../../../content/styled-components/Nav/Navbar.styled";
+import React, { useState } from "react";
+import {
+  MobileNav,
+  Line,
+} from "../../../content/styled-components/Nav/Navbar.styled";
 
-export default function NavBurger({ open, setOpen }) {
+export default function NavBurger({ toggle, setToggle }) {
   return (
-    <MobileNav
-      open={open}
-      onClick={() => setOpen((open) => !open)}
-      animate={{ scale: open ? 0.8 : 1, opacity: open ? 1 : 1 }}
-      transition={{ type: "spring", bounce: 0, duration: 0.4 }}
-    >
-      <div />
-      <div />
-      <div />
+    <MobileNav onClick={() => setToggle(!toggle)}>
+      <Line open={toggle} />
+      <Line open={toggle} />
+      <Line open={toggle} />
     </MobileNav>
   );
 }

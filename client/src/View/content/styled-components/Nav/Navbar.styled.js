@@ -2,8 +2,6 @@ import styled from "styled-components";
 import { MediaQueries } from "../MediaQueries.styled";
 import { theme } from "../Global.styled";
 
-import { motion } from "framer-motion";
-
 //Navbar
 export const NavbarStyled = styled.nav`
   padding: ${(props) => props.theme.padding};
@@ -31,10 +29,12 @@ export const NavUL = styled.ul`
   justify-content: center;
   position: absolute;
   right: 45%;
-  ${MediaQueries("tablet")`
-flex-direction: column;
-margin-top:2rem;
-`};
+  @media only screen and (max-width: 855px) {
+    display: ${(props) => (props.open ? "block" : "none")};
+    flex-direction: column;
+    margin-top: 2rem;
+    right: 2rem;
+  }
 `;
 
 export const NavLink = styled.a`
@@ -62,63 +62,83 @@ export const NavLi = styled.li`
   `};
 `;
 
-export const MobileNav = styled(motion.button)`
-  position: relative;
-  top: 0;
-  left: 10rem;
-  visibility: hidden;
-  width: 2rem;
-  height: 2em;
-  background: transparent;
+export const MobileNav = styled.button`
+  width: 50px;
   border: none;
+  background: transparent;
   cursor: pointer;
-  padding: 0;
-  z-index: 10;
-  &:focus {
-    outline: none;
+
+  @media (min-width: 856px) {
+    display: none;
   }
-  div {
-    margin: 0.4rem;
-    width: 2rem;
-    height: 0.25rem;
-    border-radius: 10px;
-    transition: all 0.3s linear;
-    position: relative;
-    transform-origin: 1px;
-    :first-child {
-      transform: ${({ open }) => (open ? "rotate(45deg)" : "rotate(0)")};
-      transition: "all 1s";
-      background: var(--primary-dark-blue);
-    }
-    :nth-child(2) {
-      opacity: ${({ open }) => (open ? "0" : "1")};
-      transform: ${({ open }) => (open ? "translateX(20px)" : "translateX(0)")};
-      transition: "all 1s";
-      background: var(--primary-dark-blue);
-    }
-    :nth-child(3) {
-      transform: ${({ open }) => (open ? "rotate(-45deg)" : "rotate(0)")};
-      transition: "all 1s";
-      background: var(--primary-dark-blue);
-    }
-  }
-  ${MediaQueries("tablet")`
-  visibility: visible;
-  `}
 `;
 
-export const MobileMenu = styled(motion.div)`
+export const NavButton = styled.button`
   position: relative;
-  right: 5px;
-  background: #fff;
-  width: 200px;
-  height: 200px;
-  border-radius: 8px;
-  box-shadow: var(--box-shadow);
+  background: var(--secondary-baby-blue);
+  color: #fff;
+  border: 1px solid var(--secondary-baby-blue);
+  border-radius: 5px;
+  font-size: 0.9rem;
+  width: 120px;
+  height: 35px;
+  cursor: pointer;
+  font-weight: bold;
+  :hover {
+    background: var(--bg-hover);
+    transition-duration: 0.3s;
+    box-shadow: var(--box-shadow);
+  }
+
+  @media only screen and (max-width: 855px) {
+    display: ${(props) => (props.open ? "block" : "none")};
+    margin-top: 20rem;
+    left: 0.4rem;
+    align-self: flex-start;
+  }
 `;
 
-export const NavDesktop = styled.div`
-  ${MediaQueries("tablet")`
- visibility: hidden
-`}
+export const Line = styled.span`
+  display: block;
+  border-radius: 50px;
+  width: 25px;
+  height: 3px;
+  margin: 5px;
+  background-color: var(--primary-dark-blue);
+  transition: width 0.4s ease-in-out;
+  :nth-child(2) {
+    width: ${(props) => (props.open ? "20px" : "25px")};
+  }
+`;
+
+export const Overlay = styled.div`
+  position: absolute;
+  height: ${(props) => (props.open ? "91vh" : 0)};
+  width: 100vw;
+  background: var(--bg-color);
+  z-index: 1000;
+  transition: height 0.4s ease-in-out;
+  top: 4rem;
+  @media (min-width: 856px) {
+    display: none;
+  }
+`;
+
+export const OverlayMenu = styled.ul`
+  list-style: none;
+  position: absolute;
+  left: 50%;
+  top: 23%;
+  transform: translate(-50%, -50%);
+
+  li {
+    opacity: ${(props) => (props.open ? 1 : 0)};
+    font-size: 25px;
+    margin: 50px 0px;
+    transition: opacity 0.4s ease-in-out;
+  }
+
+  li:nth-child(2) {
+    margin: 50px 0px;
+  }
 `;

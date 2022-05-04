@@ -9,26 +9,22 @@ import {
 } from "../../content/styled-components/Nav/Navbar.styled";
 import { ThemeProvider } from "styled-components";
 import { useNavigate } from "react-router-dom";
-import NavBurger from "./MobileNavbar/NavBurger";
-import BurgerMenu from "./MobileNavbar/BurgerMenu";
-export default function Navbar() {
-  const [open, setOpen] = useState(false);
-  const closeNav = () => !setOpen();
-  const node = useRef();
+import MobileDesktopNav from "./MobileDesktopNav";
+
+export default function Navbar({ setOverlay }) {
   const navigate = useNavigate();
 
   return (
     <ThemeProvider theme={theme}>
       <Container>
-        <NavbarStyled ref={node}>
+        <NavbarStyled>
           <NavLogo
             theme={{ fontLarge: "30px", cursor: "pointer" }}
             onClick={() => navigate("/")}
           >
             ErrorrDoc
           </NavLogo>
-          <NavBurger open={open} setOpen={setOpen} />
-          <BurgerMenu open={open} closeNav={closeNav} />
+          <MobileDesktopNav setOverlay={setOverlay} />
         </NavbarStyled>
       </Container>
     </ThemeProvider>
