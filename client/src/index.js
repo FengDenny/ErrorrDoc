@@ -1,7 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom";
-import "./View/content/index.css";
-import "./View/content/MediaQueries.css";
+import "./View/content/css/index.css";
+import "./View/content/css/MediaQueries.css";
 import App from "./App";
 import reportWebVitals from "./reportWebVitals";
 import { BrowserRouter as Router } from "react-router-dom";
