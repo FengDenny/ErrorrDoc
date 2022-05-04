@@ -51,7 +51,7 @@ export const Hero = styled(motion.section)`
   
   flex-wrap:wrap;
   margin-left:2rem;
-  margin-top: calc(0% - 93px);
+  margin-top: calc(0% - 1px);
   `}
 
   ${MediaQueries("mobileL")`
