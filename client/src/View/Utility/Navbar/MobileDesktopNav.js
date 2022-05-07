@@ -14,11 +14,21 @@ import { contextValue } from "../Modal/switchModal";
 import NavBurger from "./MobileNavbar/NavBurger";
 import { AccountContext } from "../../context/accountContext";
 
-export default function Nav({ setOverlay }) {
-  const [showModal, setShowModal] = useState(false);
-  const [active, setActive] = useState("signup");
-  const [toggle, setToggle] = useState(false);
-
+export default function Nav({
+  setOverlay,
+  removeOverlay,
+  active,
+  setActive,
+  showModal,
+  setShowModal,
+  toggle,
+  setToggle,
+  overlay,
+  setActiveClass,
+  removeActiveClass,
+  signInActive,
+  signUpActive,
+}) {
   return (
     <AccountContext.Provider value={contextValue}>
       <ThemeProvider theme={theme}>
@@ -37,11 +47,11 @@ export default function Nav({ setOverlay }) {
           nav
           onClick={() => {
             setShowModal(!showModal);
-            setActive("signup");
-            setOverlay();
+            setActive("signin");
+            setOverlay(overlay);
           }}
         >
-          Sign Up Free
+          Sign In
         </NavButton>
         <NavBurger toggle={toggle} setToggle={setToggle} />
         <Overlay open={toggle}>
@@ -61,12 +71,12 @@ export default function Nav({ setOverlay }) {
               nav
               onClick={() => {
                 setShowModal(!showModal);
-                setActive("signup");
-                setOverlay();
+                setActive("signin");
+                setOverlay(overlay);
               }}
               open={toggle}
             >
-              Sign Up Free
+              Sign In
             </NavButton>
           </OverlayMenu>
         </Overlay>
@@ -76,6 +86,12 @@ export default function Nav({ setOverlay }) {
             setShowModal={setShowModal}
             active={active}
             setActive={setActive}
+            removeOverlay={removeOverlay}
+            overlay={overlay}
+            signInActive={signInActive}
+            setActiveClass={setActiveClass}
+            removeActiveClass={removeActiveClass}
+            signUpActive={signUpActive}
           />
         )}
       </ThemeProvider>
