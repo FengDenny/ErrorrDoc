@@ -219,12 +219,12 @@ exports.forgotPassword = async (req, response) => {
       subject: "Reset Password Link",
       html: resetPassword(resetURL),
     };
-    // sgMail.send(resetData).then(() => {
-    //   return response.json({
-    //     status: "success",
-    //     message: `Email has been sent to ${email}. Follow the instructions to reset your password`,
-    //   });
-    // });
+    sgMail.send(resetData).then(() => {
+      return response.json({
+        status: "success",
+        message: `Email has been sent to ${email}. Follow the instructions to reset your password`,
+      });
+    });
   } catch (err) {
     console.log(err);
   }
@@ -448,7 +448,7 @@ exports.updateAccount = async (req, response) => {
     expiresIn: "7d",
   });
 
-  const { _id, updated } = user;
+  const { _id } = user;
 
   if (userEmail || userUsername) {
     return response.json({
@@ -474,26 +474,47 @@ exports.updateAccount = async (req, response) => {
   }
 
   if (email) {
-    await connection.updateOne(
-      { _id },
-      {
-        $set: {
-          email,
-          updated: new Date().toLocaleString(),
-        },
-      }
-    );
-  }
+    try {
+      // Will need for client later
+      const url = `${process.env.CLIENT_URL}/${email}/activate/ ${token}`;
+      const activateData = {
+        from: process.env.EMAIL_FROM,
+        to: email,
+        subject: "Account Acitivation Link",
+        html: emailVerify(url),
+      };
 
-  return response.json({
-    status: "success",
-    message: `Account has been updated successfully.`,
-    user: {
-      _id,
-      username,
-      email,
-      token: tokenSign,
-      updated: new Date().toLocaleString(),
-    },
-  });
+      sgMail.send(activateData).then(() => {
+        response.json({
+          status: "success",
+          message: `Email has been sent to ${email}. Please activate your account with that email.`,
+        });
+      });
+      await connection.updateOne(
+        { _id },
+        {
+          $set: {
+            email,
+            updated: new Date().toLocaleString(),
+          },
+        }
+      );
+    } catch (error) {
+      return response.json({
+        error: error.message,
+      });
+    }
+  } else {
+    return response.json({
+      status: "success",
+      message: `Account has been updated successfully.`,
+      user: {
+        _id,
+        username,
+        email,
+        token: tokenSign,
+        updated: new Date().toLocaleString(),
+      },
+    });
+  }
 };
