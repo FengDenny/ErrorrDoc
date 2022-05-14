@@ -3,56 +3,60 @@ const db = mongoClient.db("errorrdoc");
 const docsConnection = db.collection("documentations");
 const usersConnection = db.collection("users");
 const ObjectId = require("mongodb").ObjectId;
-const { promisify } = require("util");
-const jwt = require("jsonwebtoken");
+const { tokenDecoder } = require("../../controllers/helpers/token/token");
 
 exports.createPost = async (req, response) => {
-  const { title, description } = req.body;
-  let token;
-  //check token
-  if (req.headers.authorization && req.headers.startsWith("Bearer")) {
-    token = req.headers.authorization.split(" ")[1];
-  } else if (req.cookies.jwt) {
-    token = req.cookies.jwt;
-  }
+  let post;
+  let user;
+  const { title, description, type, tags } = req.body;
 
-  if (!token) {
-    return next(
-      response.json({
-        status: "fail",
-        message: "You are not logged in! Please log in to gain access",
-      })
-    );
-  }
-  const decoded = await promisify(jwt.verify)(token, process.env.JWT_SECRET);
-  let user = await usersConnection.findOne({ _id: ObjectId(decoded._id) });
-  try {
-    const { _id, email, username } = user;
-    const postedBy = {
-      _id: ObjectId(_id),
-      email,
-      username,
+  if (!type || !tags) {
+    post = {
+      title,
+      description,
+      createdAt: new Date().toLocaleString(),
     };
-    if (!user) {
-      return res.status(400).json({ error: "User not found" });
-    } else if (user) {
-      await docsConnection.insertOne(
-        { title, description, postedBy },
-
-        function (err, _) {
-          if (err) throw err;
-          response.json({
-            status: "success",
-            title,
-            description,
-            postedBy,
-          });
-        }
-      );
-    }
-  } catch (err) {
-    console.log(err);
+  } else {
+    post = {
+      ...req.body,
+      createdAt: new Date().toLocaleString(),
+    };
   }
+  await tokenDecoder(req, response)
+    .then(async (decode) => {
+      const { decoded } = decode;
+      const { _id } = decoded;
+      if (decode) {
+        user = await usersConnection.findOne({
+          _id: ObjectId(_id),
+        });
+      }
+    })
+    .then(async () => {
+      const { _id, email, username } = user;
+      const postedBy = {
+        _id: ObjectId(_id),
+        email,
+        username,
+      };
+      if (user) {
+        await docsConnection.insertOne(
+          { post, postedBy },
+
+          function (err, _) {
+            if (err) throw err;
+            response.json({
+              status: "success",
+              post,
+              postedBy,
+            });
+          }
+        );
+      }
+    })
+    .catch((err) => {
+      console.log(err);
+    });
 };
 
 exports.getAllPost = async (req, response) => {
@@ -72,38 +76,30 @@ exports.getAllPost = async (req, response) => {
 };
 
 exports.getAllPostByUser = async (req, response) => {
-  let token;
-  //check token
-  if (req.headers.authorization && req.headers.startsWith("Bearer")) {
-    token = req.headers.authorization.split(" ")[1];
-  } else if (req.cookies.jwt) {
-    token = req.cookies.jwt;
-  }
-
-  if (!token) {
-    return next(
-      response.json({
-        status: "fail",
-        message: "You are not logged in! Please log in to gain access",
-      })
-    );
-  }
-  const decoded = await promisify(jwt.verify)(token, process.env.JWT_SECRET);
-  let user = await usersConnection.findOne({ _id: ObjectId(decoded._id) });
-  try {
-    const { _id, username, email } = user;
-    if (!user) {
-      return res.status(400).json({ error: "No document found with that ID" });
-    } else if (user) {
-      const docs = await docsConnection.find({ "postedBy._id": _id }).toArray();
-      console.log(docs);
-      return response.json({
-        status: "success",
-        message: `${username} has ${docs.length} documentations`,
-        result: docs,
-      });
-    }
-  } catch (err) {
-    console.log(err);
-  }
+  let user;
+  await tokenDecoder(req, response)
+    .then(async (decode) => {
+      const { decoded } = decode;
+      const { _id } = decoded;
+      if (decode) {
+        user = await usersConnection.findOne({
+          _id: ObjectId(_id),
+        });
+      }
+    })
+    .then(async () => {
+      if (user) {
+        const { _id } = user;
+        const docs = await docsConnection
+          .find({ "postedBy._id": _id })
+          .toArray();
+        return response.json({
+          status: "success",
+          message: `You have ${docs.length} ${
+            docs.length > 1 ? "documentations" : "documentation"
+          }`,
+          result: docs,
+        });
+      }
+    });
 };
