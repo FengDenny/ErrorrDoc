@@ -12,6 +12,7 @@ const { expressjwt: jwtoken } = require("express-jwt");
 const jwt = require("jsonwebtoken");
 const { promisify } = require("util");
 const salt = csprng(160, 36);
+const { tokenDecoder } = require("../../controllers/helpers/token/token");
 // sending email requirements
 const dotenv = require("dotenv");
 dotenv.config({ path: "../../.env" });
@@ -21,7 +22,9 @@ sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 const {
   emailVerify,
   accountActivated,
+  emailReVerify,
   resetPassword,
+  emailReActivated,
 } = require("../../views/emailTemplate/email");
 
 exports.signUpFree = async (req, response) => {
@@ -310,37 +313,13 @@ exports.resetPassword = async (req, response) => {
 
 // protect account  middleware
 exports.protect = async (req, response, next) => {
-  let token;
-  //  check token
-  if (
-    req.headers.authorization &&
-    req.headers.authorization.startsWith("Bearer")
-  ) {
-    // retrieve the second part of the string after Bearer
-    token = req.headers.authorization.split(" ")[1];
-  } else if (req.cookies.jwt) {
-    token = req.cookies.jwt;
-  }
-
-  if (!token) {
-    return next(
-      response.json({
-        status: "fail",
-        message: "You are not logged in! Please log in to gain access",
-      })
-    );
-  }
-  const decoded = await promisify(jwt.verify)(token, process.env.JWT_SECRET);
-  const currentUser = await connection.find({ _id: decoded._id });
-  if (!currentUser) {
-    return next(
-      response.json({
-        status: "fail",
-        message: "The user thats belongs to this token does no longer exist.",
-      })
-    );
-  }
-
+  let currentUser;
+  currentUser &&
+    tokenDecoder(req, response).then((decode) => {
+      if (currentUser) {
+        currentUser = connection.find({ _id: ObjectId(decode._id) });
+      }
+    });
   req.user = currentUser;
   response.locals.user = currentUser;
   next();
@@ -356,165 +335,186 @@ exports.protected = jwtoken({
 
 exports.updatePassword = async (req, response) => {
   const { password, currentPassword } = req.body;
-
-  let token;
-  //  check token
-  if (
-    req.headers.authorization &&
-    req.headers.authorization.startsWith("Bearer")
-  ) {
-    // retrieve the second part of the string after Bearer
-    token = req.headers.authorization.split(" ")[1];
-  } else if (req.cookies.jwt) {
-    token = req.cookies.jwt;
-  }
-
-  if (!token) {
-    return next(
-      response.json({
-        status: "fail",
-        message: "You are not logged in! Please log in to gain access",
-      })
-    );
-  }
-  const decoded = await promisify(jwt.verify)(token, process.env.JWT_SECRET);
-  const user = await connection.findOne({ _id: ObjectId(decoded._id) });
-  console.log(user);
-  const { salt, username, updated } = user;
-  const confirmPassCheck = hashPassword(`${salt}${currentPassword}`);
-
-  if (!password || !currentPassword) {
-    return response.json({
-      status: "fail",
-      message: `Enter a password and a current password.`,
-    });
-  }
-
-  if (user.password !== confirmPassCheck) {
-    return response.json({
-      status: "fail",
-      message: "Your current password is incorrect.",
-    });
-  } else {
-    user.password = password;
-    await connection.updateOne(
-      { username },
-      {
-        $set: {
-          password: hashPassword(`${salt}${password}`),
-          updated: new Date().toLocaleString(),
-        },
+  let user;
+  await tokenDecoder(req, response)
+    .then(async (decode) => {
+      user = await connection.findOne({ _id: ObjectId(decode._id) });
+    })
+    .then(async () => {
+      const { salt, username } = user;
+      const confirmPassCheck = hashPassword(`${salt}${currentPassword}`);
+      const token = jwt.sign({ _id: user._id }, process.env.JWT_SECRET, {
+        expiresIn: "7d",
+      });
+      if (!password || !currentPassword) {
+        return response.json({
+          status: "fail",
+          message: `Enter a password and a current password.`,
+        });
       }
-    );
-    const token = jwt.sign({ _id: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "7d",
+      if (user.password !== confirmPassCheck) {
+        return response.json({
+          status: "fail",
+          message: "Your current password is incorrect.",
+        });
+      } else {
+        user.password = password;
+        await connection.updateOne(
+          { username },
+          {
+            $set: {
+              password: hashPassword(`${salt}${password}`),
+              updated: new Date().toLocaleString(),
+            },
+          }
+        );
+        return response.json({
+          status: "success",
+          message: "Your password has been updated.",
+          token,
+          updated: new Date().toLocaleString(),
+        });
+      }
+    })
+    .catch((err) => {
+      console.log(err);
     });
-    return response.json({
-      status: "success",
-      message: "Your password has been updated.",
-      token,
-      updated,
-    });
-  }
 };
+
 exports.updateAccount = async (req, response) => {
+  let user;
   const { email, username } = req.body;
   let token;
-  //  check token
-  if (
-    req.headers.authorization &&
-    req.headers.authorization.startsWith("Bearer")
-  ) {
-    // retrieve the second part of the string after Bearer
-    token = req.headers.authorization.split(" ")[1];
-  } else if (req.cookies.jwt) {
-    token = req.cookies.jwt;
-  }
+  await tokenDecoder(req, response)
+    .then(async (decode) => {
+      const { decoded } = decode;
+      token = jwt.sign(
+        { username, email, _id: decoded._id },
+        process.env.JWT_ACCOUNT_ACTIVATION,
+        { expiresIn: "2 minutes" }
+      );
+      user = await connection.findOne({ _id: ObjectId(decoded._id) });
+    })
+    .then(async () => {
+      const { _id } = user;
+      const userEmail = await connection.findOne({ email });
+      const userUsername = await connection.findOne({ username });
 
-  if (!token) {
-    return next(
-      response.json({
-        status: "fail",
-        message: "You are not logged in! Please log in to gain access",
-      })
-    );
-  }
-  const decoded = await promisify(jwt.verify)(token, process.env.JWT_SECRET);
-  const user = await connection.findOne({ _id: ObjectId(decoded._id) });
-  const userEmail = await connection.findOne({ email });
-  const userUsername = await connection.findOne({ username });
-
-  const tokenSign = jwt.sign({ _id: user._id }, process.env.JWT_SECRET, {
-    expiresIn: "7d",
-  });
-
-  const { _id } = user;
-
-  if (userEmail || userUsername) {
-    return response.json({
-      status: "error",
-      message: `${
-        userEmail ? email : username
-      } is associated with another account. Please use a different ${
-        userEmail ? "email" : "username"
-      }.`,
-    });
-  }
-
-  if (username) {
-    await connection.updateOne(
-      { _id },
-      {
-        $set: {
-          username,
-          updated: new Date().toLocaleString(),
-        },
-      }
-    );
-  }
-
-  if (email) {
-    try {
-      // Will need for client later
-      const url = `${process.env.CLIENT_URL}/${email}/activate/ ${token}`;
-      const activateData = {
-        from: process.env.EMAIL_FROM,
-        to: email,
-        subject: "Account Acitivation Link",
-        html: emailVerify(url),
-      };
-
-      sgMail.send(activateData).then(() => {
-        response.json({
-          status: "success",
-          message: `Email has been sent to ${email}. Please activate your account with that email.`,
+      if (userEmail || userUsername) {
+        return response.json({
+          status: "error",
+          message: `${
+            userEmail ? email : username
+          } is associated with another account. Please use a different ${
+            userEmail ? "email" : "username"
+          }.`,
         });
-      });
-      await connection.updateOne(
-        { _id },
-        {
-          $set: {
+      }
+      if (username) {
+        await connection.updateOne(
+          { _id },
+          {
+            $set: {
+              username,
+              updated: new Date().toLocaleString(),
+            },
+          }
+        );
+      }
+      if (email) {
+        // Will need for client later
+        const url = `${process.env.CLIENT_URL}/${email}/activate/ ${token}`;
+        const activateData = {
+          from: process.env.EMAIL_FROM,
+          to: email,
+          subject: "Account Acitivation Link",
+          html: emailReVerify(url),
+        };
+
+        sgMail
+          .send(activateData)
+          .then(() => {
+            response.json({
+              status: "success",
+              message: `Email has been sent to ${email}. Please activate your account with that email.`,
+            });
+          })
+          .then(() => {
+            connection.updateOne(
+              { _id },
+              {
+                $set: {
+                  email,
+                  updated: new Date().toLocaleString(),
+                },
+              }
+            );
+          });
+      } else {
+        const tokenSign = jwt.sign({ _id: _id }, process.env.JWT_SECRET, {
+          expiresIn: "7d",
+        });
+        return response.json({
+          status: "success",
+          message: `Account has been updated successfully.`,
+          user: {
+            _id,
+            username,
             email,
+            token: tokenSign,
             updated: new Date().toLocaleString(),
           },
-        }
-      );
-    } catch (error) {
-      return response.json({
-        error: error.message,
-      });
-    }
-  } else {
-    return response.json({
-      status: "success",
-      message: `Account has been updated successfully.`,
-      user: {
-        _id,
-        username,
-        email,
-        token: tokenSign,
-        updated: new Date().toLocaleString(),
-      },
+        });
+      }
     });
-  }
 };
+
+// exports.updateEmailActivation = async (req, response) => {
+//   const { token } = req.body;
+//   if (token) {
+//     jwt.verify(
+//       token,
+//       process.env.JWT_ACCOUNT_ACTIVATION,
+//       async function (err, _) {
+//         let { email, _id } = jwt.decode(token);
+//         const activated = await connection.findOne({ email });
+//         if (err) {
+//           console.log(err);
+//         }
+
+//         try {
+//           const url = `${process.env.CLIENT_URL}/`;
+//           const accountIsActivated = {
+//             from: process.env.EMAIL_FROM,
+//             to: email,
+//             subject: "Account Activated",
+//             html: accountActivated(url),
+//           };
+//           sgMail.send(accountIsActivated);
+
+//           if (activated) {
+//             return response.json({
+//               status: "fail",
+//               message: "Your account has been activated",
+//             });
+//           } else {
+//             await connection.updateOne(
+//               { _id },
+//               {
+//                 $set: {
+//                   email,
+//                   updated: new Date().toLocaleString(),
+//                 },
+//               }
+//             );
+//           }
+//         } catch (err) {
+//           return response.json({
+//             status: "fail",
+//             message: "There was a problem sending the email.",
+//           });
+//         }
+//       }
+//     );
+//   }
+// };
