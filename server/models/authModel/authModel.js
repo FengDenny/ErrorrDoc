@@ -194,40 +194,41 @@ exports.login = async (req, response) => {
 exports.forgotPassword = async (req, response) => {
   const { email } = req.body;
   const user = await connection.findOne({ email });
-  const { username } = user;
-  if (!user) {
-    return response.json({
-      status: "error",
-      message: `There is no user associated with ${email}`,
-    });
-  }
   let token;
   const resetExpires = Date.now() + 10 * 60 * 1000; // 10 * 60 sec * 1000 milisec (expires in 10mins)
   const resetToken = createPasswordResetToken(token);
 
   try {
-    await connection.updateOne(
-      { username },
-      {
-        $set: {
-          passwordResetToken: resetToken,
-          passwordResetExpires: resetExpires,
-        },
-      }
-    );
-    const resetURL = `${process.env.CLIENT_URL}/auth/resetPassword/${resetToken}`;
-    const resetData = {
-      from: process.env.EMAIL_FROM,
-      to: email,
-      subject: "Reset Password Link",
-      html: resetPassword(resetURL),
-    };
-    sgMail.send(resetData).then(() => {
+    if (!user) {
       return response.json({
-        status: "success",
-        message: `Email has been sent to ${email}. Follow the instructions to reset your password`,
+        status: "error",
+        message: `There is no user associated with ${email}`,
       });
-    });
+    } else {
+      const { username } = user;
+      await connection.updateOne(
+        { username },
+        {
+          $set: {
+            passwordResetToken: resetToken,
+            passwordResetExpires: resetExpires,
+          },
+        }
+      );
+      const resetURL = `${process.env.CLIENT_URL}/auth/resetPassword/${resetToken}`;
+      const resetData = {
+        from: process.env.EMAIL_FROM,
+        to: email,
+        subject: "Reset Password Link",
+        html: resetPassword(resetURL),
+      };
+      sgMail.send(resetData).then(() => {
+        return response.json({
+          status: "success",
+          message: `Email has been sent to ${email}. Follow the instructions to reset your password`,
+        });
+      });
+    }
   } catch (err) {
     console.log(err);
   }
