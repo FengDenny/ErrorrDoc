@@ -7,7 +7,6 @@ const {
   login,
   forgotPassword,
   resetPassword,
-  updateEmailActivation,
 } = require("../../models/authModel/authModel");
 
 const {
@@ -22,7 +21,6 @@ authRoutes.post(
   signUpFree
 );
 authRoutes.post("/auth/account-activation", accountActivation);
-// authRoutes.post("/auth/update-email-activation", updateEmailActivation);
 authRoutes.post("/auth/login", login);
 
 // @desc User ResetPassword
