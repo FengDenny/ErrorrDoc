@@ -10,7 +10,6 @@ const ObjectId = require("mongodb").ObjectId;
 const csprng = require("csprng");
 const { expressjwt: jwtoken } = require("express-jwt");
 const jwt = require("jsonwebtoken");
-const { promisify } = require("util");
 const salt = csprng(160, 36);
 const { tokenDecoder } = require("../../controllers/helpers/token/token");
 // sending email requirements
@@ -22,9 +21,7 @@ sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 const {
   emailVerify,
   accountActivated,
-  emailReVerify,
   resetPassword,
-  emailReActivated,
 } = require("../../views/emailTemplate/email");
 
 exports.signUpFree = async (req, response) => {
@@ -385,7 +382,6 @@ exports.updatePassword = async (req, response) => {
 exports.updateAccount = async (req, response) => {
   let user;
   const { email, username } = req.body;
-  let token;
   await tokenDecoder(req, response)
     .then(async (decode) => {
       const { decoded } = decode;
@@ -401,6 +397,13 @@ exports.updateAccount = async (req, response) => {
       const userEmail = await connection.findOne({ email });
       const userUsername = await connection.findOne({ username });
 
+      if (user.email === email) {
+        return response.json({
+          status: "error",
+          message: "Use a different email address then your current one",
+        });
+      }
+
       if (userEmail || userUsername) {
         return response.json({
           status: "error",
@@ -411,6 +414,7 @@ exports.updateAccount = async (req, response) => {
           }.`,
         });
       }
+
       if (username) {
         await connection.updateOne(
           { _id },
@@ -423,99 +427,25 @@ exports.updateAccount = async (req, response) => {
         );
       }
       if (email) {
-        // Will need for client later
-        const url = `${process.env.CLIENT_URL}/${email}/activate/ ${token}`;
-        const activateData = {
-          from: process.env.EMAIL_FROM,
-          to: email,
-          subject: "Account Acitivation Link",
-          html: emailReVerify(url),
-        };
-
-        sgMail
-          .send(activateData)
-          .then(() => {
-            response.json({
-              status: "success",
-              message: `Email has been sent to ${email}. Please activate your account with that email.`,
-            });
-          })
-          .then(() => {
-            connection.updateOne(
-              { _id },
-              {
-                $set: {
-                  email,
-                  updated: new Date().toLocaleString(),
-                },
-              }
-            );
-          });
-      } else {
-        const tokenSign = jwt.sign({ _id: _id }, process.env.JWT_SECRET, {
-          expiresIn: "7d",
-        });
-        return response.json({
-          status: "success",
-          message: `Account has been updated successfully.`,
-          user: {
-            _id,
-            username,
-            email,
-            token: tokenSign,
-            updated: new Date().toLocaleString(),
-          },
-        });
+        await connection.updateOne(
+          { _id },
+          {
+            $set: {
+              email,
+              updated: new Date().toLocaleString(),
+            },
+          }
+        );
       }
+      return response.json({
+        status: "success",
+        message: `Account has been updated successfully.`,
+        user: {
+          _id,
+          username,
+          email,
+          updated: new Date().toLocaleString(),
+        },
+      });
     });
 };
-
-// exports.updateEmailActivation = async (req, response) => {
-//   const { token } = req.body;
-//   if (token) {
-//     jwt.verify(
-//       token,
-//       process.env.JWT_ACCOUNT_ACTIVATION,
-//       async function (err, _) {
-//         let { email, _id } = jwt.decode(token);
-//         const activated = await connection.findOne({ email });
-//         if (err) {
-//           console.log(err);
-//         }
-
-//         try {
-//           const url = `${process.env.CLIENT_URL}/`;
-//           const accountIsActivated = {
-//             from: process.env.EMAIL_FROM,
-//             to: email,
-//             subject: "Account Activated",
-//             html: accountActivated(url),
-//           };
-//           sgMail.send(accountIsActivated);
-
-//           if (activated) {
-//             return response.json({
-//               status: "fail",
-//               message: "Your account has been activated",
-//             });
-//           } else {
-//             await connection.updateOne(
-//               { _id },
-//               {
-//                 $set: {
-//                   email,
-//                   updated: new Date().toLocaleString(),
-//                 },
-//               }
-//             );
-//           }
-//         } catch (err) {
-//           return response.json({
-//             status: "fail",
-//             message: "There was a problem sending the email.",
-//           });
-//         }
-//       }
-//     );
-//   }
-// };
